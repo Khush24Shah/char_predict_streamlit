@@ -3,4 +3,4 @@ pandas
 streamlit
 matplotlib
 scikit-learn
-pytorch
+# pytorch
