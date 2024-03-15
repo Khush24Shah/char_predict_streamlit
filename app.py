@@ -75,7 +75,8 @@ st.write(f'Predicted next {k} character{" is" if k==1 else "s are"}: ":blue[ {ge
 
 # feature visualization (t-SNE)
 emb_dim = 4
-emb = torch.nn.Embedding(len(vocab_dict), emb_dim)
+# with random state set to 42, the plot will be reproducible
+emb = model.emb
 
 # Assuming you have a tensor of higher-dimensional embeddings
 embeddings = (emb.weight.data).detach().numpy()
@@ -89,12 +90,12 @@ df = pd.DataFrame(embeddings_tsne, columns=['1', '2'])
 
 def plot_emb(embeddings_tsne, itos, ax=None):
     if ax is None:
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
     for i in range(len(itos)):
         x = df['1'][i]
         y = df['2'][i]
         ax.scatter(x, y, color='k')
-        ax.text(x+ 0.04, y + 0.04, itos[i])
+        ax.text(x + 0.04, y + 0.04, itos[i])
     return ax
 
 fig, ax = plt.subplots()
