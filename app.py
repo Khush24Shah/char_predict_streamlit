@@ -73,8 +73,6 @@ generation = generate_name(model, text, vocab_dict, vocab_dict_inv, block_size, 
 # write prediction
 st.write(f'Predicted next {k} character{" is" if k==1 else "s are"}: ":blue[ {generation[:k]} ]"')
 
-st.write(k, generation[:k], len(generation))
-
 # feature visualization (t-SNE)
 emb_dim = 4
 emb = torch.nn.Embedding(len(vocab_dict), emb_dim)
