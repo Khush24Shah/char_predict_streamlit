@@ -14,6 +14,14 @@ torch.manual_seed(seed)
 # Streamlit app on Text Generation
 st.title('Text Generation')
 
+# select embedding dimension (drop-down)
+emb_dim = st.selectbox('Select the embedding dimension', [1, 2, 4, 8, 16])
+
+# select activation function (drop-down)
+activation = st.selectbox('Select the activation function', ['sigmoid', 'sin', 'tanh', 'relu'])
+
+path = f"models/{activation}-model-{emb_dim}.pth"
+
 # select "k" (number of characters to predict)
 k = st.slider('Select the number of characters to predict', 1, 100, 1)
 
@@ -43,11 +51,9 @@ class NextChar(nn.Module):
     x = torch.sin(self.lin2(x))
     x = self.lin3(x)
     return x
-  
-path = "model.pth"
 
 # load model
-model = NextChar(8, 65, 8)
+model = NextChar(block_size, len(unique_chars), emb_dim)
 model.load_state_dict(torch.load(path))
 model.eval()
 
@@ -74,7 +80,7 @@ generation = generate_name(model, text, vocab_dict, vocab_dict_inv, block_size, 
 st.write(f'Predicted next {k} character{" is" if k==1 else "s are"}: ":blue[ {generation[:k]} ]"')
 
 # feature visualization (t-SNE)
-emb_dim = 4
+
 # with random state set to 42, the plot will be reproducible
 emb = model.emb
 
@@ -82,22 +88,32 @@ emb = model.emb
 embeddings = (emb.weight.data).detach().numpy()
 
 # Apply t-SNE
-tsne = TSNE(n_components=2, perplexity=30, n_iter=300)
+tsne = TSNE(n_components=min(2, emb_dim), perplexity=30, n_iter=300)
 embeddings_tsne = tsne.fit_transform(embeddings)
 
-# convert the embeddings_tsne to a dataframe
-df = pd.DataFrame(embeddings_tsne, columns=['1', '2'])
+def plot_emb(embeddings_tsne, itos, dim, ax=None):
+	if ax is None:
+		_, ax = plt.subplots()
+	
+	if dim > 1:
+		for i in range(len(itos)):
+			x = embeddings_tsne[i, 0]
+			y = embeddings_tsne[i, 1]
+			ax.scatter(x, y, color='k')
+			ax.text(x + 0.04, y + 0.04, itos[i])
+	else:
+		ax.scatter(embeddings_tsne, np.zeros_like(embeddings_tsne), color='k')
+		for i in range(len(itos)):
+			ax.text(embeddings_tsne[i] + 0.04, 0.04, itos[i])
+	return ax
 
-def plot_emb(embeddings_tsne, itos, ax=None):
-    if ax is None:
-        _, ax = plt.subplots()
-    for i in range(len(itos)):
-        x = df['1'][i]
-        y = df['2'][i]
-        ax.scatter(x, y, color='k')
-        ax.text(x + 0.04, y + 0.04, itos[i])
-    return ax
+if emb_dim > 1:
+	# convert the embeddings_tsne to a dataframe
+	df = pd.DataFrame(embeddings_tsne, columns=['1', '2'])
+else:
+    # convert the embeddings_tsne to a dataframe
+    df = pd.DataFrame(embeddings_tsne, columns=['1'])
 
 fig, ax = plt.subplots()
-ax = plot_emb(embeddings_tsne, vocab_dict, ax)
+ax = plot_emb(embeddings_tsne, vocab_dict, emb_dim, ax=ax)
 st.pyplot(fig)
