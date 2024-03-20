@@ -6,21 +6,24 @@ from torch import nn
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 
-# random seed
-seed = 42
-np.random.seed(seed)
-torch.manual_seed(seed)
 
 # Streamlit app on Text Generation
 st.title('Text Generation')
 
+# select random seed (drop-down)
+seed = st.selectbox('Select the random seed', [1, 2 ,3])
+
+np.random.seed(seed)
+torch.manual_seed(seed)
+
 # select embedding dimension (drop-down)
-emb_dim = st.selectbox('Select the embedding dimension', [1, 2, 4, 8, 16])
+emb_dim = st.selectbox('Select the embedding dimension', [2, 8, 14])
 
-# select activation function (drop-down)
-activation = st.selectbox('Select the activation function', ['sigmoid', 'sin', 'tanh', 'relu'])
+# select context length (drop-down)
+block_size = st.selectbox('Select the context length', [2, 6 ,10])
 
-path = f"models/{activation}-model-{emb_dim}.pth"
+# path to the model
+path = f"models/{seed}_context_{block_size}_embedding_{emb_dim}.pt"
 
 # select "k" (number of characters to predict)
 k = st.slider('Select the number of characters to predict', 1, 100, 1)
@@ -28,16 +31,22 @@ k = st.slider('Select the number of characters to predict', 1, 100, 1)
 # Enter the text to predict upon
 text = st.text_input('Enter the text to predict upon', 'Type here')
 
-unique_chars = ['\n', ' ', '!', '$', '&', "'", ',', '-', '.', '3', ':', ';', '?', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+# read data
+data = open('input.txt', 'r').read()
+
+# unique characters
+unique_chars = list(set(''.join(data)))
+unique_chars.sort()
+
+# create vocabulary
 vocab_dict = {i:ch for i, ch in enumerate(unique_chars)}
 vocab_dict_inv = {ch:i for i, ch in enumerate(unique_chars)}
-block_size = 8
 
 # model
 class NextChar(nn.Module):
   def __init__(self, block_size, vocab_size, emb_dim, hidden_dims=None):
     if hidden_dims is None:
-      hidden_dims = [block_size * emb_dim, block_size * emb_dim]
+      hidden_dims = [64, 64]
     super().__init__()
     self.emb = nn.Embedding(vocab_size, emb_dim)
     self.lin1 = nn.Linear(block_size * emb_dim, hidden_dims[0])
@@ -52,13 +61,15 @@ class NextChar(nn.Module):
     x = self.lin3(x)
     return x
 
-# load model
+# create model
 model = NextChar(block_size, len(unique_chars), emb_dim)
-model.load_state_dict(torch.load(path))
+
+# load model weights and move to CPU
+model.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
 model.eval()
 
-def generate_name(model, sentence, itos, stoi, block_size, max_len=10):
-    original_sentence = sentence
+# function to generate next character
+def next_char(model, sentence, itos, stoi, block_size, max_len=10):
     if len(sentence) < block_size:
         sentence = " " * (block_size - len(sentence)) + sentence
     using_for_predicction = sentence[-block_size:].lower()
@@ -74,10 +85,18 @@ def generate_name(model, sentence, itos, stoi, block_size, max_len=10):
 
     return prediction
 
-generation = generate_name(model, text, vocab_dict, vocab_dict_inv, block_size, k)
+# generate next k characters
+generation = next_char(model, text, vocab_dict, vocab_dict_inv, block_size, k)
+
+# if there is a space in the prediction, replace it with | | for better visualization
+generation = generation.replace(' ', '| |')
+
+# if there is a newline in the prediction, replace it with \n for better visualization
+# generation = generation.replace('\n', '|\n|')
 
 # write prediction
-st.write(f'Predicted next {k} character{" is" if k==1 else "s are"}: ":blue[ {generation[:k]} ]"')
+st.write(f'Predicted next :red[{k}] character{" is" if k==1 else "s are"}:')
+st.success(generation)
 
 # feature visualization (t-SNE)
 
@@ -91,29 +110,31 @@ embeddings = (emb.weight.data).detach().numpy()
 tsne = TSNE(n_components=min(2, emb_dim), perplexity=30, n_iter=300)
 embeddings_tsne = tsne.fit_transform(embeddings)
 
+# function to plot t-SNE of the learnt embeddings
 def plot_emb(embeddings_tsne, itos, dim, ax=None):
 	if ax is None:
 		_, ax = plt.subplots()
 	
-	if dim > 1:
-		for i in range(len(itos)):
-			x = embeddings_tsne[i, 0]
-			y = embeddings_tsne[i, 1]
-			ax.scatter(x, y, color='k')
-			ax.text(x + 0.04, y + 0.04, itos[i])
-	else:
-		ax.scatter(embeddings_tsne, np.zeros_like(embeddings_tsne), color='k')
-		for i in range(len(itos)):
-			ax.text(embeddings_tsne[i] + 0.04, 0.04, itos[i])
+	for i in range(len(itos)):
+		char = itos[i]
+		if char == ' ':
+			char = '| |'
+		elif char == '\n':
+			char = '\\n'
+		x = embeddings_tsne[i, 0]
+		y = embeddings_tsne[i, 1]
+		ax.scatter(x, y, color='k')
+		ax.text(x + 0.07, y + 0.07, char)
 	return ax
 
-if emb_dim > 1:
-	# convert the embeddings_tsne to a dataframe
-	df = pd.DataFrame(embeddings_tsne, columns=['1', '2'])
-else:
-    # convert the embeddings_tsne to a dataframe
-    df = pd.DataFrame(embeddings_tsne, columns=['1'])
+# convert the embeddings_tsne to a dataframe
+df = pd.DataFrame(embeddings_tsne, columns=['1', '2'])
 
+# plot the embeddings
 fig, ax = plt.subplots()
 ax = plot_emb(embeddings_tsne, vocab_dict, emb_dim, ax=ax)
+ax.set_title('t-SNE of the learnt Embeddings')
 st.pyplot(fig)
+
+# note
+st.info('Note: "| |" represents a space and "\\n" represents a newline.')
