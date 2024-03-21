@@ -98,6 +98,9 @@ generation = generation.replace(' ', '| |')
 st.write(f'Predicted next :red[{k}] character{" is" if k==1 else "s are"}:')
 st.success(generation)
 
+# note
+st.info('Note: "| |" represents a space.')
+
 # feature visualization (t-SNE)
 
 # with random state set to 42, the plot will be reproducible
@@ -114,7 +117,7 @@ embeddings_tsne = tsne.fit_transform(embeddings)
 def plot_emb(embeddings_tsne, itos, dim, ax=None):
 	if ax is None:
 		_, ax = plt.subplots()
-	
+
 	for i in range(len(itos)):
 		char = itos[i]
 		if char == ' ':
