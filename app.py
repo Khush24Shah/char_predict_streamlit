@@ -110,7 +110,7 @@ emb = model.emb
 embeddings = (emb.weight.data).detach().numpy()
 
 # Apply t-SNE
-tsne = TSNE(n_components=min(2, emb_dim), perplexity=30, n_iter=300)
+tsne = TSNE(n_components=min(2, emb_dim), perplexity=30, max_iter=300)
 embeddings_tsne = tsne.fit_transform(embeddings)
 
 # function to plot t-SNE of the learnt embeddings
